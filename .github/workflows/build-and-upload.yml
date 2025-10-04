@@ -58,59 +58,65 @@ jobs:
           path: src/output/main.pdf
           retention-days: 30
 
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@v2
-        with:
-          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
-          token_format: access_token
-          access_token_scopes: https://www.googleapis.com/auth/drive.file
-
-      - name: Set up Cloud SDK
-        uses: google-github-actions/setup-gcloud@v2
+      - name: Install Python dependencies
+        run: |
+          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: Upload to Google Drive
         id: upload
         env:
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GCP_SA_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         run: |
-          echo "Getting access token..."
-          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          python3 << 'EOF'
+          import os
+          import json
+          from datetime import datetime
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
           
-          if [ -z "$ACCESS_TOKEN" ]; then
-            echo "Error: Failed to get access token"
-            exit 1
-          fi
+          # サービスアカウント情報を読み込み
+          credentials_info = json.loads(os.environ['GCP_SA_KEY'])
+          credentials = service_account.Credentials.from_service_account_info(
+              credentials_info,
+              scopes=['https://www.googleapis.com/auth/drive.file']
+          )
           
-          echo "Access token obtained successfully"
-          echo "Folder ID: ${GOOGLE_DRIVE_FOLDER_ID}"
+          # Drive APIクライアントを作成
+          service = build('drive', 'v3', credentials=credentials)
           
-          FILE_NAME="main_$(date +%Y%m%d_%H%M%S).pdf"
-          echo "Uploading file as: ${FILE_NAME}"
+          # ファイル名を生成
+          timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+          file_name = f'main_{timestamp}.pdf'
           
-          RESPONSE=$(curl -s -w "\n%{http_code}" -X POST \
-            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
-            -F "metadata={name:'${FILE_NAME}',parents:['${GOOGLE_DRIVE_FOLDER_ID}']};type=application/json;charset=UTF-8" \
-            -F "file=@src/output/main.pdf;type=application/pdf" \
-            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart")
+          # ファイルメタデータ
+          file_metadata = {
+              'name': file_name,
+              'parents': [os.environ['GOOGLE_DRIVE_FOLDER_ID']]
+          }
           
-          HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
-          BODY=$(echo "$RESPONSE" | head -n-1)
+          # ファイルをアップロード
+          media = MediaFileUpload('src/output/main.pdf', mimetype='application/pdf')
+          file = service.files().create(
+              body=file_metadata,
+              media_body=media,
+              fields='id'
+          ).execute()
           
-          echo "HTTP Status Code: ${HTTP_CODE}"
-          echo "Response Body: ${BODY}"
+          file_id = file.get('id')
+          file_url = f'https://drive.google.com/file/d/{file_id}/view'
           
-          if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
-            echo "PDF uploaded to Google Drive successfully"
-            FILE_ID=$(echo "$BODY" | grep -o '"id": *"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
-            FILE_URL="https://drive.google.com/file/d/${FILE_ID}/view"
-            echo "file_url=${FILE_URL}" >> $GITHUB_OUTPUT
-            echo "file_name=${FILE_NAME}" >> $GITHUB_OUTPUT
-            echo "success=true" >> $GITHUB_OUTPUT
-          else
-            echo "Error: Upload failed with status code ${HTTP_CODE}"
-            echo "success=false" >> $GITHUB_OUTPUT
-            exit 1
-          fi
+          print(f'PDF uploaded successfully')
+          print(f'File ID: {file_id}')
+          print(f'File URL: {file_url}')
+          
+          # GitHub Outputに書き込み
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'file_url={file_url}\n')
+              f.write(f'file_name={file_name}\n')
+              f.write(f'success=true\n')
+          EOF
 
       - name: Send Discord notification on success
         if: steps.upload.outputs.success == 'true'
