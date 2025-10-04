@@ -1,0 +1,70 @@
+name: Build LaTeX and Upload to Google Drive
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+
+jobs:
+  build-and-upload:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build PDF with Docker
+        run: |
+          docker compose build latex
+          docker compose up build
+
+      - name: Check if PDF was created
+        run: |
+          if [ ! -f src/output/main.pdf ]; then
+            echo "Error: PDF file was not created"
+            exit 1
+          fi
+          echo "PDF successfully created"
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-pdf
+          path: src/output/main.pdf
+          retention-days: 30
+
+      - name: Authenticate to Google Cloud
+        uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+
+      - name: Set up Cloud SDK
+        uses: google-github-actions/setup-gcloud@v2
+
+      - name: Upload to Google Drive
+        env:
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+        run: |
+          # Google Drive APIを使用してアップロード
+          ACCESS_TOKEN=$(gcloud auth print-access-token)
+          
+          FILE_NAME="main_$(date +%Y%m%d_%H%M%S).pdf"
+          
+          curl -X POST \
+            -H "Authorization: Bearer ${ACCESS_TOKEN}" \
+            -F "metadata={name:'${FILE_NAME}',parents:['${GOOGLE_DRIVE_FOLDER_ID}']};type=application/json;charset=UTF-8" \
+            -F "file=@src/output/main.pdf;type=application/pdf" \
+            "https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart"
+          
+          echo "PDF uploaded to Google Drive successfully"
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker compose up clean || true
