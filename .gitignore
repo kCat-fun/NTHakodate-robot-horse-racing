@@ -1,0 +1,38 @@
+# LaTeX生成ファイル
+*.aux
+*.log
+*.dvi
+*.toc
+*.out
+*.synctex.gz
+*.fls
+*.fdb_latexmk
+*.bbl
+*.blg
+*.idx
+*.ind
+*.ilg
+*.lot
+*.lof
+*.nav
+*.snm
+*.vrb
+*.bcf
+*.run.xml
+
+# VS Code LaTeX Workshop生成ファイル
+main.*
+!main.tex
+!src/main.tex
+
+# Docker関連
+.docker/
+
+# macOS
+.DS_Store
+
+# Windows
+Thumbs.db
+
+# Linux
+*~

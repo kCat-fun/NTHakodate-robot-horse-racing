@@ -1,0 +1,42 @@
+version: '3.8'
+
+services:
+  latex:
+    build: .
+    volumes:
+      - ./src:/workspace/src
+      - ./.textlintrc.json:/workspace/.textlintrc.json
+    working_dir: /workspace
+
+  build:
+    extends: latex
+    command: >
+      bash -c "
+        cd src &&
+        uplatex -interaction=nonstopmode main.tex &&
+        uplatex -interaction=nonstopmode main.tex &&
+        dvipdfmx main.dvi &&
+        mv main.pdf output/main.pdf
+      "
+
+  clean:
+    extends: latex
+    command: >
+      bash -c "
+        cd src &&
+        rm -f *.aux *.log *.dvi *.toc *.out *.synctex.gz *.fls *.fdb_latexmk *.bbl *.blg
+      "
+
+  textlint:
+    extends: latex
+    command: >
+      bash -c "
+        textlint src/**/*.tex
+      "
+
+  fmt:
+    extends: latex
+    command: >
+      bash -c "
+        textlint --fix src/**/*.tex
+      "

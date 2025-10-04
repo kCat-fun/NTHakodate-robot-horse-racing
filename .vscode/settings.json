@@ -1,0 +1,22 @@
+{
+    "latex-workshop.latex.autoBuild.run": "never",
+    "latex-workshop.latex.autoBuild.cleanAndRetry.enabled": false,
+    "latex-workshop.latex.autoClean.run": "never",
+    "latex-workshop.latex.build.forceRecipeUsage": false,
+    "latex-workshop.latex.build.clearLog.everyRecipeStep.enabled": false,
+    "latex-workshop.latex.watch.files.ignore": [
+        "**/*.tex",
+        "**/*.bib"
+    ],
+    "latex-workshop.latex.recipes": [],
+    "latex-workshop.latex.tools": [],
+    "latex-workshop.showContextMenu": false,
+    "latex-workshop.intellisense.package.enabled": true,
+    "latex-workshop.message.error.show": true,
+    "latex-workshop.message.warning.show": true,
+    "latex-workshop.latex.outDir": "./output",
+    "files.associations": {
+        "*.tex": "latex"
+    },
+    "makefile.configureOnOpen": true
+}

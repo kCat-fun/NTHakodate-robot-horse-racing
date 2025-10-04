@@ -1,0 +1,53 @@
+\documentclass[11pt, uplatex, dvipdfmx, openany]{jsbook}
+
+% 必要なパッケージの読み込み
+\usepackage[dvipdfmx]{graphicx}
+\usepackage[dvipdfmx]{color}
+\usepackage{url}
+\usepackage{here}
+\usepackage{amsmath}
+\usepackage{amsfonts}
+\usepackage{amssymb}
+\usepackage{fancyhdr}
+\usepackage{geometry}
+\usepackage[dvipdfmx]{hyperref}
+
+% カスタムスタイルファイルの読み込み
+\usepackage{styles/style}
+
+% 同人誌用ページレイアウトの設定（スタイルファイルで定義済み）
+% \geometry{...} はstyle.styで設定
+
+% ハイパーリンクの設定（同人誌らしく控えめに）
+\hypersetup{
+    colorlinks=true,
+    linkcolor=black,
+    filecolor=black,
+    urlcolor=blue,
+    pdftitle={函館機械競馬開催記},
+    pdfauthor={kCat},
+    pdfsubject={NT函館2025 イベントレポート},
+    pdfkeywords={ロボコン, 機械競馬, NT函館, イベント},
+    bookmarks=true,
+    bookmarksnumbered=true
+}
+
+% 参考文献の設定
+\bibliographystyle{plain}
+
+% 同人誌らしい設定
+\renewcommand{\contentsname}{目次}
+\renewcommand{\listfigurename}{図目次}
+\renewcommand{\listtablename}{表目次}
+\renewcommand{\bibname}{参考文献}
+\renewcommand{\indexname}{索引}
+
+\begin{document}
+
+% ページファイルの読み込み
+\input{pages}
+
+% 参考文献（必要に応じて）
+% \bibliography{bibresource}
+
+\end{document}
