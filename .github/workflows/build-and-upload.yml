@@ -71,7 +71,6 @@ jobs:
         env:
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
         run: |
-          # Google Drive APIを使用してアップロード
           echo "Getting access token..."
           ACCESS_TOKEN=$(gcloud auth print-access-token)
           
@@ -100,13 +99,7 @@ jobs:
           
           if [ "$HTTP_CODE" -ge 200 ] && [ "$HTTP_CODE" -lt 300 ]; then
             echo "PDF uploaded to Google Drive successfully"
-            FILE_ID=$(echo "$BODY" | grep -o '"id": *"[^"]*"' | grep -o '"[^"]*"
-
-      - name: Clean up
-        if: always()
-        run: |
-          docker compose up clean || true
- | tr -d '"')
+            FILE_ID=$(echo "$BODY" | grep -o '"id": *"[^"]*"' | grep -o '"[^"]*"$' | tr -d '"')
             FILE_URL="https://drive.google.com/file/d/${FILE_ID}/view"
             echo "file_url=${FILE_URL}" >> $GITHUB_OUTPUT
             echo "file_name=${FILE_NAME}" >> $GITHUB_OUTPUT
