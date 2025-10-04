@@ -13,6 +13,7 @@ services:
     command: >
       bash -c "
         cd src &&
+        mkdir -p output &&
         uplatex -interaction=nonstopmode main.tex &&
         uplatex -interaction=nonstopmode main.tex &&
         dvipdfmx main.dvi &&

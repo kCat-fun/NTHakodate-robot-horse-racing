@@ -19,15 +19,34 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
+      - name: Create output directory
+        run: |
+          mkdir -p src/output
+
       - name: Build PDF with Docker
         run: |
           docker compose build latex
           docker compose up build
 
+      - name: List files for debugging
+        run: |
+          echo "=== Checking src directory ==="
+          ls -la src/
+          echo "=== Checking for PDF files ==="
+          find src/ -name "*.pdf" || echo "No PDF files found"
+
       - name: Check if PDF was created
         run: |
-          if [ ! -f src/output/main.pdf ]; then
+          if [ -f src/main.pdf ]; then
+            echo "PDF found at src/main.pdf"
+            mkdir -p src/output
+            mv src/main.pdf src/output/main.pdf
+          elif [ -f src/output/main.pdf ]; then
+            echo "PDF found at src/output/main.pdf"
+          else
             echo "Error: PDF file was not created"
+            echo "=== Docker build logs ==="
+            docker compose logs build
             exit 1
           fi
           echo "PDF successfully created"
