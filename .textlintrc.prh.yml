@@ -1,0 +1,51 @@
+version: 1
+rules:
+  # よくある誤字・表記ゆれ
+  - expected: ロボット
+    patterns:
+      - ロボト
+      - ろぼっと
+  
+  - expected: アルゴリズム
+    patterns:
+      - アルゴリズム
+  
+  - expected: パラメータ
+    patterns:
+      - パラメタ
+  
+  - expected: コンピュータ
+    patterns:
+      - コンピューター
+  
+  - expected: ユーザ
+    patterns:
+      - ユーザー
+  
+  - expected: サーバ
+    patterns:
+      - サーバー
+  
+  # 技術用語
+  - expected: GitHub
+    patterns:
+      - Github
+      - github
+  
+  - expected: JavaScript
+    patterns:
+      - Javascript
+      - javascript
+  
+  - expected: Python
+    patterns:
+      - python
+  
+  # 数字と単位の間にスペース
+  - expected: $1 $2
+    pattern: /(\d+)(mm|cm|m|km|g|kg|秒|分|時間|日|年)/
+    specs:
+      - from: 100mm
+        to: 100 mm
+      - from: 5kg
+        to: 5 kg
