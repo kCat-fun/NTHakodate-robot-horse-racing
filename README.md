@@ -6,7 +6,7 @@
 
 ## 🚀 ローカル環境のセットアップ
 
-### 方法1: Dockerを使用（推奨）
+### 方法: Dockerを使用
 
 ```bash
 # textlintチェックを実行
@@ -14,22 +14,6 @@ make lint
 
 # 自動修正
 make fmt
-```
-
-### 方法2: ローカルにtextlintをインストール
-
-```bash
-# セットアップスクリプトを実行
-chmod +x setup-textlint.sh
-./setup-textlint.sh
-
-# または手動でインストール
-npm install -g \
-    textlint \
-    textlint-rule-preset-ja-technical-writing \
-    textlint-rule-prh \
-    textlint-rule-preset-ja-spacing \
-    textlint-rule-spellcheck-tech-word
 ```
 
 ## 📋 使い方
@@ -40,10 +24,6 @@ npm install -g \
 # Docker経由
 make lint          # チェックのみ
 make fmt           # 自動修正
-
-# 直接実行（textlintをグローバルインストールしている場合）
-textlint src/**/*.tex           # チェックのみ
-textlint --fix src/**/*.tex     # 自動修正
 ```
 
 ### ビルド時のチェック
@@ -79,8 +59,8 @@ make build
 
 ### ルールの調整
 
-`.textlintrc.json` を編集してルールを調整できます：
-
+`.textlintrc.json` を編集してルールを調整できます。   
+例：
 ```json
 {
   "rules": {
