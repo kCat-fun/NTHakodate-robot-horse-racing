@@ -1,0 +1,104 @@
+name: Upload PDF to Google Drive
+
+on:
+  workflow_dispatch:
+
+jobs:
+  upload:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Download artifact from build workflow
+        uses: actions/download-artifact@v4
+        with:
+          name: built-pdf
+          path: src/output
+
+      - name: Install Python dependencies
+        run: |
+          pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
+
+      - name: Upload to Google Drive
+        id: upload
+        env:
+          GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
+          GCP_SA_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
+        run: |
+          python3 << 'EOF'
+          import os, json
+          from datetime import datetime
+          from google.oauth2 import service_account
+          from googleapiclient.discovery import build
+          from googleapiclient.http import MediaFileUpload
+
+          creds_info = json.loads(os.environ['GCP_SA_KEY'])
+          creds = service_account.Credentials.from_service_account_info(
+              creds_info,
+              scopes=['https://www.googleapis.com/auth/drive.file']
+          )
+          service = build('drive', 'v3', credentials=creds)
+
+          ts = datetime.now().strftime('%Y%m%d_%H%M%S')
+          file_name = f'main_{ts}.pdf'
+          metadata = {'name': file_name, 'parents': [os.environ['GOOGLE_DRIVE_FOLDER_ID']]}
+
+          media = MediaFileUpload('src/output/main.pdf', mimetype='application/pdf')
+          file = service.files().create(body=metadata, media_body=media, fields='id').execute()
+
+          file_id = file.get('id')
+          file_url = f'https://drive.google.com/file/d/{file_id}/view'
+
+          print(f'File uploaded: {file_url}')
+
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'file_url={file_url}\n')
+              f.write(f'file_name={file_name}\n')
+              f.write(f'success=true\n')
+          EOF
+
+      - name: Send Discord notification (success)
+        if: steps.upload.outputs.success == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
+
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"📄 PDF Upload Successful\",
+                \"description\": \"PDFが正常にGoogle Driveへアップロードされました。\",
+                \"color\": 3066993,
+                \"fields\": [
+                  {\"name\": \"📁 ファイル名\", \"value\": \"${{ steps.upload.outputs.file_name }}\", \"inline\": false},
+                  {\"name\": \"🔗 Google Drive\", \"value\": \"[開く](${{ steps.upload.outputs.file_url }})\", \"inline\": false},
+                  {\"name\": \"👤 コミット作成者\", \"value\": \"${COMMIT_AUTHOR}\", \"inline\": true},
+                  {\"name\": \"📝 コミットメッセージ\", \"value\": \"${COMMIT_MESSAGE}\", \"inline\": false}
+                ],
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+              }]
+            }" \
+            "${DISCORD_WEBHOOK_URL}"
+
+      - name: Send Discord notification (failure)
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          RUN_URL="${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ Upload Failed\",
+                \"description\": \"Google Driveへのアップロードに失敗しました。\",
+                \"color\": 15158332,
+                \"fields\": [{\"name\": \"🔗 詳細\", \"value\": \"[GitHub Actions Log](${RUN_URL})\", \"inline\": false}],
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+              }]
+            }" \
+            "${DISCORD_WEBHOOK_URL}"
