@@ -34,42 +34,67 @@ jobs:
       - name: Install textlint
         run: |
           npm install -g \
-          textlint \
-          textlint-rule-preset-ja-technical-writing \
-          textlint-rule-prh \
-          textlint-rule-preset-ja-spacing \
-          textlint-rule-spellcheck-tech-word \
-          textlint-plugin-latex2e
+            textlint \
+            textlint-rule-preset-ja-technical-writing \
+            textlint-rule-prh \
+            textlint-rule-preset-ja-spacing \
+            textlint-rule-spellcheck-tech-word \
+            textlint-plugin-latex2e
 
-      - name: Run textlint
+      - name: Run textlint (JSON output)
         id: textlint
         run: |
-          textlint src/**/*.tex > textlint-result.txt 2>&1 || echo "error=true" >> $GITHUB_OUTPUT
-          cat textlint-result.txt
+          textlint --format json src/**/*.tex > textlint-result.json || echo "error=true" >> $GITHUB_OUTPUT
 
-      - name: Create summary
+      - name: Summarize and send to Discord
         if: always()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          if [ "${{ steps.textlint.outputs.error }}" == "true" ]; then
-            echo "## ❌ textlint Check Failed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "以下の問題が見つかりました:" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            cat textlint-result.txt >> $GITHUB_STEP_SUMMARY
-            echo '```' >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "## ✅ textlint Check Passed" >> $GITHUB_STEP_SUMMARY
-            echo "" >> $GITHUB_STEP_SUMMARY
-            echo "文章チェックが正常に完了しました。" >> $GITHUB_STEP_SUMMARY
-          fi
+          python3 << 'EOF'
+          import json, os
+
+          summary = ""
+          try:
+              with open("textlint-result.json", "r", encoding="utf-8") as f:
+                  results = json.load(f)
+                  for r in results:
+                      file_path = r.get("filePath", "unknown file")
+                      messages = r.get("messages", [])
+                      for m in messages:
+                          line = m.get("line", "?")
+                          rule_id = m.get("ruleId", "?")
+                          message = m.get("message", "")
+                          # PRH系は「xxxx → yyyy」の形式がある場合に置換指示を抽出
+                          suggestion = ""
+                          if "→" in message:
+                              suggestion = f" 修正案: {message.split('→')[-1].strip()}"
+                          summary += f"- {file_path} (line {line}) [{rule_id}]: {message}{suggestion}\n"
+          except Exception as e:
+              summary = f"Failed to parse textlint JSON: {e}"
+
+          if not summary:
+              summary = "文章チェックに問題はありません。"
+
+          payload = {
+              "embeds": [{
+                  "title": "❌ Textlint Check Summary" if "Failed" in summary or "error=true" in os.environ.get("GITHUB_OUTPUT", "") else "✅ Textlint Passed",
+                  "description": summary[:4000],  # Discord embedの制限に注意
+                  "color": 15158332 if "Failed" in summary else 3066993,
+                  "timestamp": datetime.utcnow().isoformat()
+              }]
+          }
+
+          import requests
+          webhook_url = os.environ["DISCORD_WEBHOOK_URL"]
+          requests.post(webhook_url, json=payload)
+          EOF
 
   build:
     name: Build PDF
     runs-on: ubuntu-latest
-    needs: textlint  # ✅ textlint成功後に実行される
-    if: success()     # ✅ textlint失敗時はスキップ
+    needs: textlint
+    if: success()
 
     steps:
       - name: Checkout repository
