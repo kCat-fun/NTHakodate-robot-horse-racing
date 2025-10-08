@@ -5,7 +5,11 @@
   "rules": {
     "preset-ja-technical-writing": true,
     "preset-ja-spacing": true,
-    "prh": true,
+    "prh": {
+      "rulePaths": [
+        ".textlintrc.prh.yml"
+      ]
+    },
     "spellcheck-tech-word": true
   }
 }
