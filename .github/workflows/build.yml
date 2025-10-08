@@ -58,6 +58,20 @@ jobs:
           path: src/output/main.pdf
           retention-days: 30
 
+      - name: Create job summary
+        if: success()
+        run: |
+          echo "## 📄 PDF Build Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ PDF has been successfully built and uploaded as artifact." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⏳ Waiting for upload workflow to complete..." >> $GITHUB_STEP_SUMMARY
+
       - name: Clean up
         if: always()
         run: |

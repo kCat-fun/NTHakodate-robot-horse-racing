@@ -118,6 +118,27 @@ jobs:
             }" \
             "${DISCORD_WEBHOOK_URL}"
 
+      - name: Update build workflow summary
+        if: steps.upload.outputs.success == 'true'
+        run: |
+          BUILD_RUN_URL="${{ github.event.workflow_run.html_url }}"
+          FILE_URL="${{ steps.upload.outputs.file_url }}"
+          FILE_NAME="${{ steps.upload.outputs.file_name }}"
+          
+          echo "## 📄 PDF Build and Upload Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ PDF has been successfully built and uploaded to Google Drive." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Workflow**: [View Build Log](${BUILD_RUN_URL})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.event.workflow_run.head_branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ github.event.workflow_run.actor.login }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Upload Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Name**: ${FILE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Google Drive**: [Open File](${FILE_URL})" >> $GITHUB_STEP_SUMMARY
+
       - name: Send Discord notification on failure
         if: failure()
         env:
