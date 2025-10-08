@@ -53,7 +53,9 @@ jobs:
         run: |
           python3 << 'EOF'
           import json, os
-
+          import requests
+          from datetime import datetime  # ← ここを追加
+        
           summary = ""
           try:
               with open("textlint-result.json", "r", encoding="utf-8") as f:
@@ -65,29 +67,26 @@ jobs:
                           line = m.get("line", "?")
                           rule_id = m.get("ruleId", "?")
                           message = m.get("message", "")
-                          # PRH系は「xxxx → yyyy」の形式がある場合に置換指示を抽出
                           suggestion = ""
                           if "→" in message:
                               suggestion = f" 修正案: {message.split('→')[-1].strip()}"
                           summary += f"- {file_path} (line {line}) [{rule_id}]: {message}{suggestion}\n"
           except Exception as e:
               summary = f"Failed to parse textlint JSON: {e}"
-
+          
           if not summary:
               summary = "文章チェックに問題はありません。"
-
+          
           payload = {
               "embeds": [{
                   "title": "❌ Textlint Check Summary" if "Failed" in summary or "error=true" in os.environ.get("GITHUB_OUTPUT", "") else "✅ Textlint Passed",
-                  "description": summary[:4000],  # Discord embedの制限に注意
+                  "description": summary[:4000],
                   "color": 15158332 if "Failed" in summary else 3066993,
-                  "timestamp": datetime.utcnow().isoformat()
+                  "timestamp": datetime.utcnow().isoformat()  # ← datetime が定義済み
               }]
           }
-
-          import requests
-          webhook_url = os.environ["DISCORD_WEBHOOK_URL"]
-          requests.post(webhook_url, json=payload)
+              
+          requests.post(os.environ["DISCORD_WEBHOOK_URL"], json=payload)
           EOF
 
   build:
