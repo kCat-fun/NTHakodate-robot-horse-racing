@@ -1,4 +1,4 @@
-name: Build LaTeX and Upload to Google Drive
+name: LaTeX Build and Textlint Check
 
 on:
   push:
@@ -12,45 +12,80 @@ on:
   workflow_dispatch:
 
 jobs:
+  textlint:
+    name: Run textlint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+
+      - name: Install textlint
+        run: |
+          npm install -g \
+            textlint \
+            textlint-rule-preset-ja-technical-writing \
+            textlint-rule-prh \
+            textlint-rule-preset-ja-spacing \
+            textlint-rule-spellcheck-tech-word \
+            @textlint/textlint-plugin-latex2e
+
+      - name: Run textlint
+        id: textlint
+        run: |
+          textlint src/**/*.tex > textlint-result.txt 2>&1 || echo "error=true" >> $GITHUB_OUTPUT
+          cat textlint-result.txt
+
+      - name: Create summary
+        if: always()
+        run: |
+          if [ "${{ steps.textlint.outputs.error }}" == "true" ]; then
+            echo "## ❌ textlint Check Failed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "以下の問題が見つかりました:" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            cat textlint-result.txt >> $GITHUB_STEP_SUMMARY
+            echo '```' >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "## ✅ textlint Check Passed" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "文章チェックが正常に完了しました。" >> $GITHUB_STEP_SUMMARY
+          fi
+
   build:
     name: Build PDF
     runs-on: ubuntu-latest
-    
+    needs: textlint  # ✅ textlint成功後に実行される
+    if: success()     # ✅ textlint失敗時はスキップ
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
       - name: Create output directory
-        run: |
-          mkdir -p src/output
+        run: mkdir -p src/output
 
       - name: Build PDF with Docker
         run: |
           docker compose build latex
           docker compose up build
 
-      - name: List files for debugging
+      - name: Check and move PDF
         run: |
-          echo "=== Checking src directory ==="
-          ls -la src/
-          echo "=== Checking for PDF files ==="
-          find src/ -name "*.pdf" || echo "No PDF files found"
-
-      - name: Check if PDF was created
-        run: |
-          if [ -f src/main.pdf ]; then
-            echo "PDF found at src/main.pdf"
-            mkdir -p src/output
-            mv src/main.pdf src/output/main.pdf
-          elif [ -f src/output/main.pdf ]; then
-            echo "PDF found at src/output/main.pdf"
+          if [ -f src/output/main.pdf ]; then
+            echo "✅ PDF successfully created"
           else
-            echo "Error: PDF file was not created"
-            echo "=== Docker build logs ==="
+            echo "❌ PDF file was not created"
             docker compose logs build
             exit 1
           fi
-          echo "PDF successfully created"
 
       - name: Upload PDF as artifact
         uses: actions/upload-artifact@v4
@@ -59,17 +94,12 @@ jobs:
           path: src/output/main.pdf
           retention-days: 30
 
-      - name: Clean up
-        if: always()
-        run: |
-          docker compose up clean || true
-
   upload:
     name: Upload to Google Drive
     runs-on: ubuntu-latest
     needs: build
     if: success()
-    
+
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -85,7 +115,6 @@ jobs:
           pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: Upload to Google Drive via OAuth
-        id: upload
         env:
           GDRIVE_CREDENTIALS_JSON: ${{ secrets.GDRIVE_CREDENTIALS_JSON }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
@@ -98,135 +127,17 @@ jobs:
           from googleapiclient.http import MediaFileUpload
           from google.oauth2.credentials import Credentials
 
-          # 認証情報を復元
           creds_info = json.loads(os.environ['GDRIVE_CREDENTIALS_JSON'])
           token_info = json.loads(os.environ['GDRIVE_TOKEN_JSON'])
           creds = Credentials.from_authorized_user_info(token_info, scopes=['https://www.googleapis.com/auth/drive.file'])
-
           service = build('drive', 'v3', credentials=creds)
 
           timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
           file_name = f"main_{timestamp}.pdf"
-
           metadata = {'name': file_name}
           if os.environ.get('GOOGLE_DRIVE_FOLDER_ID'):
               metadata['parents'] = [os.environ['GOOGLE_DRIVE_FOLDER_ID']]
-
           media = MediaFileUpload('src/output/main.pdf', mimetype='application/pdf')
           file = service.files().create(body=metadata, media_body=media, fields='id').execute()
-
-          file_id = file.get('id')
-          file_url = f'https://drive.google.com/file/d/{file_id}/view'
-
-          print(f'✅ PDF uploaded: {file_url}')
-
-          # GitHub output
-          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
-              f.write(f'file_url={file_url}\n')
-              f.write(f'file_name={file_name}\n')
-              f.write(f'success=true\n')
+          print(f"✅ Uploaded: https://drive.google.com/file/d/{file['id']}/view")
           EOF
-
-      - name: Create workflow summary
-        if: steps.upload.outputs.success == 'true'
-        run: |
-          FILE_URL="${{ steps.upload.outputs.file_url }}"
-          FILE_NAME="${{ steps.upload.outputs.file_name }}"
-          
-          echo "## 📄 PDF Build and Upload Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ PDF has been successfully built and uploaded to Google Drive." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Author**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Upload Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **File Name**: ${FILE_NAME}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Google Drive**: [Open File](${FILE_URL})" >> $GITHUB_STEP_SUMMARY
-
-      - name: Send Discord notification on success
-        if: steps.upload.outputs.success == 'true'
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
-          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
-          
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"📄 PDF Build Successful\",
-                \"description\": \"PDFが正常にビルドされ、Google Driveにアップロードされました\",
-                \"color\": 3066993,
-                \"fields\": [
-                  {
-                    \"name\": \"📁 ファイル名\",
-                    \"value\": \"${{ steps.upload.outputs.file_name }}\",
-                    \"inline\": false
-                  },
-                  {
-                    \"name\": \"🔗 Google Drive\",
-                    \"value\": \"[ファイルを開く](${{ steps.upload.outputs.file_url }})\",
-                    \"inline\": false
-                  },
-                  {
-                    \"name\": \"👤 コミット作成者\",
-                    \"value\": \"${COMMIT_AUTHOR}\",
-                    \"inline\": true
-                  },
-                  {
-                    \"name\": \"📝 コミットメッセージ\",
-                    \"value\": \"${COMMIT_MESSAGE}\",
-                    \"inline\": false
-                  },
-                  {
-                    \"name\": \"🔗 コミット\",
-                    \"value\": \"[View on GitHub](${COMMIT_URL})\",
-                    \"inline\": false
-                  }
-                ],
-                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
-              }]
-            }" \
-            "${DISCORD_WEBHOOK_URL}"
-
-      - name: Send Discord notification on failure
-        if: failure()
-        env:
-          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
-        run: |
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
-          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
-          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
-          RUN_URL="${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
-          
-          curl -H "Content-Type: application/json" \
-            -d "{
-              \"embeds\": [{
-                \"title\": \"❌ PDF Upload Failed\",
-                \"description\": \"PDFのアップロードに失敗しました\",
-                \"color\": 15158332,
-                \"fields\": [
-                  {
-                    \"name\": \"👤 コミット作成者\",
-                    \"value\": \"${COMMIT_AUTHOR}\",
-                    \"inline\": true
-                  },
-                  {
-                    \"name\": \"📝 コミットメッセージ\",
-                    \"value\": \"${COMMIT_MESSAGE}\",
-                    \"inline\": false
-                  },
-                  {
-                    \"name\": \"🔗 詳細を確認\",
-                    \"value\": \"[GitHub Actions Log](${RUN_URL})\",
-                    \"inline\": false
-                  }
-                ],
-                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
-              }]
-            }" \
-            "${DISCORD_WEBHOOK_URL}"
