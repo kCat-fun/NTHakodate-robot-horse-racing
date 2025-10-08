@@ -18,6 +18,8 @@ RUN npm install -g \
     textlint-rule-prh \
     textlint-rule-preset-ja-spacing \
     textlint-rule-spellcheck-tech-word \
+    textlint-rule-sentence-length \
+    textlint-filter-rule-allowlist \
     textlint-plugin-latex2e
 
 # 作業ディレクトリを設定

@@ -31,11 +31,13 @@ services:
       "
 
   textlint:
-   extends: latex
-   command: >
-     bash -c "
-       find src -name '*.tex' ! -name 'title.tex' -print0 | xargs -0 textlint
-     "
+    extends: latex
+    command: >
+      bash -c "
+        cd /workspace &&
+        find src -type f -name '*.tex' ! -name 'title.tex' -print0 |
+        xargs -0 textlint
+      "
 
   fmt:
     extends: latex
