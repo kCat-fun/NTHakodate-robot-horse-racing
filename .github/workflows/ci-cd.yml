@@ -1,15 +1,74 @@
-name: Upload to Google Drive
+name: Build LaTeX and Upload to Google Drive
 
 on:
-  workflow_run:
-    workflows: ["Build LaTeX"]
-    types:
-      - completed
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
-  upload:
+  build:
+    name: Build PDF
     runs-on: ubuntu-latest
-    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Create output directory
+        run: |
+          mkdir -p src/output
+
+      - name: Build PDF with Docker
+        run: |
+          docker compose build latex
+          docker compose up build
+
+      - name: List files for debugging
+        run: |
+          echo "=== Checking src directory ==="
+          ls -la src/
+          echo "=== Checking for PDF files ==="
+          find src/ -name "*.pdf" || echo "No PDF files found"
+
+      - name: Check if PDF was created
+        run: |
+          if [ -f src/main.pdf ]; then
+            echo "PDF found at src/main.pdf"
+            mkdir -p src/output
+            mv src/main.pdf src/output/main.pdf
+          elif [ -f src/output/main.pdf ]; then
+            echo "PDF found at src/output/main.pdf"
+          else
+            echo "Error: PDF file was not created"
+            echo "=== Docker build logs ==="
+            docker compose logs build
+            exit 1
+          fi
+          echo "PDF successfully created"
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-pdf
+          path: src/output/main.pdf
+          retention-days: 30
+
+      - name: Clean up
+        if: always()
+        run: |
+          docker compose up clean || true
+
+  upload:
+    name: Upload to Google Drive
+    runs-on: ubuntu-latest
+    needs: build
+    if: success()
     
     steps:
       - name: Checkout repository
@@ -20,8 +79,6 @@ jobs:
         with:
           name: main-pdf
           path: src/output
-          run-id: ${{ github.event.workflow_run.id }}
-          github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Python dependencies
         run: |
@@ -70,15 +127,33 @@ jobs:
               f.write(f'success=true\n')
           EOF
 
+      - name: Create workflow summary
+        if: steps.upload.outputs.success == 'true'
+        run: |
+          FILE_URL="${{ steps.upload.outputs.file_url }}"
+          FILE_NAME="${{ steps.upload.outputs.file_name }}"
+          
+          echo "## 📄 PDF Build and Upload Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ PDF has been successfully built and uploaded to Google Drive." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.ref_name }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ github.actor }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Upload Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Name**: ${FILE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Google Drive**: [Open File](${FILE_URL})" >> $GITHUB_STEP_SUMMARY
+
       - name: Send Discord notification on success
         if: steps.upload.outputs.success == 'true'
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
-          COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
-          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
           
           curl -H "Content-Type: application/json" \
             -d "{
@@ -118,36 +193,14 @@ jobs:
             }" \
             "${DISCORD_WEBHOOK_URL}"
 
-      - name: Update build workflow summary
-        if: steps.upload.outputs.success == 'true'
-        run: |
-          BUILD_RUN_URL="${{ github.event.workflow_run.html_url }}"
-          FILE_URL="${{ steps.upload.outputs.file_url }}"
-          FILE_NAME="${{ steps.upload.outputs.file_name }}"
-          
-          echo "## 📄 PDF Build and Upload Completed" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "✅ PDF has been successfully built and uploaded to Google Drive." >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **Build Workflow**: [View Build Log](${BUILD_RUN_URL})" >> $GITHUB_STEP_SUMMARY
-          echo "- **Commit**: \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Branch**: \`${{ github.event.workflow_run.head_branch }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "- **Author**: ${{ github.event.workflow_run.actor.login }}" >> $GITHUB_STEP_SUMMARY
-          echo "" >> $GITHUB_STEP_SUMMARY
-          echo "### Upload Information" >> $GITHUB_STEP_SUMMARY
-          echo "- **File Name**: ${FILE_NAME}" >> $GITHUB_STEP_SUMMARY
-          echo "- **Google Drive**: [Open File](${FILE_URL})" >> $GITHUB_STEP_SUMMARY
-
       - name: Send Discord notification on failure
         if: failure()
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
-          COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
-          COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
-          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B)
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an)
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${{ github.sha }}"
           RUN_URL="${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
           
           curl -H "Content-Type: application/json" \
