@@ -1,30 +1,72 @@
-name: Build
+name: Build LaTeX
 
 on:
   push:
     branches:
       - main
+      - master
+  pull_request:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
 
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      actions: write  # ←これがないと workflow_dispatch 呼び出しができません
-
+    
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Install PlatformIO
-        run: pip install -U platformio
+      - name: Create output directory
+        run: |
+          mkdir -p src/output
 
-      - name: Build firmware
-        run: pio run
+      - name: Build PDF with Docker
+        run: |
+          docker compose build latex
+          docker compose up build
+
+      - name: List files for debugging
+        run: |
+          echo "=== Checking src directory ==="
+          ls -la src/
+          echo "=== Checking for PDF files ==="
+          find src/ -name "*.pdf" || echo "No PDF files found"
+
+      - name: Check if PDF was created
+        run: |
+          if [ -f src/main.pdf ]; then
+            echo "PDF found at src/main.pdf"
+            mkdir -p src/output
+            mv src/main.pdf src/output/main.pdf
+          elif [ -f src/output/main.pdf ]; then
+            echo "PDF found at src/output/main.pdf"
+          else
+            echo "Error: PDF file was not created"
+            echo "=== Docker build logs ==="
+            docker compose logs build
+            exit 1
+          fi
+          echo "PDF successfully created"
+
+      - name: Upload PDF as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: main-pdf
+          path: src/output/main.pdf
+          retention-days: 30
 
       - name: Trigger upload workflow
         if: success()
+        uses: peter-evans/repository-dispatch@v3
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          event-type: pdf-built
+          client-payload: '{"run_id": "${{ github.run_id }}", "sha": "${{ github.sha }}"}'
+
+      - name: Clean up
+        if: always()
         run: |
-          gh workflow run upload.yml --ref ${{ github.ref }}
-        env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          docker compose up clean || true
