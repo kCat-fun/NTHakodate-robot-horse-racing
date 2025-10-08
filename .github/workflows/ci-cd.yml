@@ -28,12 +28,12 @@ jobs:
       - name: Install textlint
         run: |
           npm install -g \
-            textlint \
-            textlint-rule-preset-ja-technical-writing \
-            textlint-rule-prh \
-            textlint-rule-preset-ja-spacing \
-            textlint-rule-spellcheck-tech-word \
-            @textlint/textlint-plugin-latex2e
+          textlint \
+          textlint-rule-preset-ja-technical-writing \
+          textlint-rule-prh \
+          textlint-rule-preset-ja-spacing \
+          textlint-rule-spellcheck-tech-word \
+          textlint-plugin-latex2e
 
       - name: Run textlint
         id: textlint
