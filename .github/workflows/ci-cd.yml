@@ -44,7 +44,9 @@ jobs:
       - name: Run textlint (JSON output)
         id: textlint
         run: |
-          textlint --format json src/**/*.tex > textlint-result.json || echo "error=true" >> $GITHUB_OUTPUT
+          # title.tex を除外して textlint 実行
+          find src -name '*.tex' ! -name 'title.tex' -print0 | xargs -0 textlint --format json > textlint-result.json || echo "error=true" >> $GITHUB_OUTPUT
+
 
       - name: Summarize and send to Discord
         if: always()
