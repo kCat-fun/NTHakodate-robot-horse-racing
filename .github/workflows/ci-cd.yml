@@ -54,15 +54,20 @@ jobs:
           python3 << 'EOF'
           import json, os
           import requests
-          from datetime import datetime  # ← ここを追加
+          from datetime import datetime
         
           summary = ""
           try:
               with open("textlint-result.json", "r", encoding="utf-8") as f:
                   results = json.load(f)
+                  # ファイルごとにまとめる
+                  file_dict = {}
                   for r in results:
                       file_path = r.get("filePath", "unknown file")
                       messages = r.get("messages", [])
+                      if not messages:
+                          continue
+                      lines = []
                       for m in messages:
                           line = m.get("line", "?")
                           rule_id = m.get("ruleId", "?")
@@ -70,7 +75,15 @@ jobs:
                           suggestion = ""
                           if "→" in message:
                               suggestion = f" 修正案: {message.split('→')[-1].strip()}"
-                          summary += f"- {file_path} (line {line}) [{rule_id}]: {message}{suggestion}\n"
+                          lines.append(f"- line {line} [{rule_id}]: {message}{suggestion}")
+                      if lines:
+                          file_dict[file_path] = lines
+                      
+                  # まとめて文字列に変換
+                  for file_path, lines in file_dict.items():
+                      summary += f"**ファイル:** {file_path}\n"
+                      summary += "\n".join(lines) + "\n\n"
+                  
           except Exception as e:
               summary = f"Failed to parse textlint JSON: {e}"
           
@@ -79,15 +92,16 @@ jobs:
           
           payload = {
               "embeds": [{
-                  "title": "❌ Textlint Check Summary" if "Failed" in summary or "error=true" in os.environ.get("GITHUB_OUTPUT", "") else "✅ Textlint Passed",
-                  "description": summary[:4000],
-                  "color": 15158332 if "Failed" in summary else 3066993,
-                  "timestamp": datetime.utcnow().isoformat()  # ← datetime が定義済み
+                  "title": "❌ Textlint Check Summary" if "error=true" in os.environ.get("GITHUB_OUTPUT", "") else "✅ Textlint Passed",
+                  "description": summary[:4000],  # Discord embedの制限に注意
+                  "color": 15158332 if "error=true" in os.environ.get("GITHUB_OUTPUT", "") else 3066993,
+                  "timestamp": datetime.utcnow().isoformat()
               }]
           }
               
           requests.post(os.environ["DISCORD_WEBHOOK_URL"], json=payload)
           EOF
+
 
   build:
     name: Build PDF
