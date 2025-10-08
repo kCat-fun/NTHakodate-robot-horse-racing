@@ -8,24 +8,23 @@ on:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: write  # ←これがないと workflow_dispatch 呼び出しができません
 
     steps:
-      - name: Checkout code
+      - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up PlatformIO
-        run: |
-          pip install -U platformio
+      - name: Install PlatformIO
+        run: pip install -U platformio
 
       - name: Build firmware
-        run: |
-          pio run
+        run: pio run
 
       - name: Trigger upload workflow
         if: success()
-        uses: peter-evans/workflow-dispatch@v1
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          repository: ${{ github.repository }}
-          workflow: upload.yml
-          ref: ${{ github.ref }}
+        run: |
+          gh workflow run upload.yml --ref ${{ github.ref }}
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
