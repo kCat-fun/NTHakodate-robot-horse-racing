@@ -27,7 +27,7 @@ services:
     command: >
       bash -c "
         cd src &&
-        rm -f *.aux *.log *.dvi *.toc *.out *.synctex.gz *.fls *.fdb_latexmk *.bbl *.blg
+        rm -f *.aux *.log *.dvi *.toc *.out *.synctex.gz *.fls *.fdb_latexmk *.bbl *.blg *.lof *.lot
       "
 
   textlint:

@@ -2,21 +2,28 @@
 
 % 必要なパッケージの読み込み
 \usepackage[dvipdfmx]{graphicx}
-\usepackage[dvipdfmx]{color}
+% \usepackage[dvipdfmx]{color}
 \usepackage{url}
 \usepackage{here}
 \usepackage{amsmath}
 \usepackage{amsfonts}
 \usepackage{amssymb}
-\usepackage{fancyhdr}
+% \usepackage{fancyhdr}
 \usepackage{geometry}
 \usepackage[dvipdfmx]{hyperref}
 
 % カスタムスタイルファイルの読み込み
 \usepackage{styles/style}
 
-% 同人誌用ページレイアウトの設定（スタイルファイルで定義済み）
-% \geometry{...} はstyle.styで設定
+% ページレイアウト
+\usepackage{geometry}
+\geometry{
+  top=25mm,
+  bottom=25mm,
+  left=20mm,
+  right=20mm,
+  heightrounded
+}
 
 % ハイパーリンクの設定（同人誌らしく控えめに）
 \hypersetup{

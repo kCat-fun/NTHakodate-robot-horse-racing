@@ -1,49 +1,51 @@
 \NeedsTeXFormat{LaTeX2e}
 \ProvidesPackage{styles/style}[2024/01/01 Custom Style Package]
 
+% ---------------------------
 % フォント設定
+% ---------------------------
 \usepackage{lmodern}
 \usepackage[T1]{fontenc}
 
+% ---------------------------
 % カラー定義
-\definecolor{primary}{RGB}{33, 37, 41}
-\definecolor{secondary}{RGB}{108, 117, 125}
-\definecolor{accent}{RGB}{0, 123, 255}
-\definecolor{success}{RGB}{40, 167, 69}
-\definecolor{warning}{RGB}{255, 193, 7}
-\definecolor{danger}{RGB}{220, 53, 69}
+% ---------------------------
+\usepackage{xcolor}
+\definecolor{primary}{RGB}{33,37,41}
+\definecolor{secondary}{RGB}{108,117,125}
+\definecolor{accent}{RGB}{0,123,255}
+\definecolor{success}{RGB}{40,167,69}
+\definecolor{warning}{RGB}{255,193,7}
+\definecolor{danger}{RGB}{220,53,69}
 
-% ヘッダー・フッターの設定
 \usepackage{fancyhdr}
-\pagestyle{fancy}
-\fancyhf{} % 全部消去
-% \fancyfoot[C]{\thepage} % ページ番号をフッター中央
-\renewcommand{\headrulewidth}{0pt} % ヘッダーの下線を消す
-\renewcommand{\footrulewidth}{0pt} % フッターの線
 
-% ヘッダー余白を狭くする
-\setlength{\headheight}{0pt} % ヘッダー高さ
-\setlength{\headsep}{-5pt}    % ヘッダーと本文の間隔
-
-% フッター余白を狭くする
-\setlength{\footskip}{-10pt}   % フッターと本文の間隔
-
-% 章タイトルのカスタマイズ
+% ---------------------------
+% 章・セクションタイトル
+% ---------------------------
 \usepackage{titlesec}
-% \titleformat{\chapter}[display]
-%     {\normalfont\huge\bfseries\color{primary}}
-%     {\chaptertitlename\ \thechapter}{20pt}{\Huge}
-% \titlespacing*{\chapter}{0pt}{-30pt}{40pt}
 
-% セクションタイトルのカスタマイズ
+% 章タイトルカスタマイズ（章番号とタイトルの間の余白調整）
+\titleformat{\chapter}[hang]
+  {\normalfont\huge\bfseries\color{primary}} % フォント
+  {\chaptertitlename\ \thechapter 章} % 章番号
+  {20pt} % 章番号とタイトルの水平距離
+  {} % タイトル前の追加コード（空でOK）
+
+% 章タイトルの縦余白（ページ上端との距離・本文までの距離）
+\titlespacing*{\chapter}
+  {0pt}   % 左マージン
+  {0pt}   % 章タイトル上の縦余白
+  {10pt}  % 章タイトル下の縦余白（本文までの距離）
+
 \titleformat{\section}
     {\normalfont\Large\bfseries\color{primary}}
     {\thesection}{1em}{}
 
-% コードブロックの設定
+% ---------------------------
+% コードブロック
+% ---------------------------
 \usepackage{listings}
-\usepackage{xcolor}
-
 \lstdefinestyle{mystyle}{
     backgroundcolor=\color{gray!10},
     commentstyle=\color{green!60!black},
@@ -66,7 +68,9 @@
 }
 \lstset{style=mystyle}
 
-% 数式環境の拡張
+% ---------------------------
+% 定理環境
+% ---------------------------
 \usepackage{theorem}
 \theoremstyle{definition}
 \newtheorem{definition}{定義}[chapter]
@@ -75,13 +79,17 @@
 \newtheorem{corollary}{系}[chapter]
 \newtheorem{example}{例}[chapter]
 
-% 便利なコマンド定義
+% ---------------------------
+% 便利コマンド
+% ---------------------------
 \newcommand{\code}[1]{\texttt{#1}}
 \newcommand{\file}[1]{\texttt{#1}}
 \newcommand{\keyword}[1]{\textbf{#1}}
 \newcommand{\emphasis}[1]{\textcolor{accent}{\textbf{#1}}}
 
+% ---------------------------
 % 注意書きボックス
+% ---------------------------
 \usepackage{tcolorbox}
 \tcbuselibrary{most}
 
