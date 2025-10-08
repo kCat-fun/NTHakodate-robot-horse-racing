@@ -25,6 +25,12 @@ jobs:
         with:
           node-version: '18'
 
+      - name: Clear npm cache and confirm registry
+        run: |
+          npm cache clean --force
+          npm config set registry https://registry.npmjs.org/
+          npm config get registry
+
       - name: Install textlint
         run: |
           npm install -g \
