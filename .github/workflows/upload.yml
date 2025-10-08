@@ -27,56 +27,43 @@ jobs:
         run: |
           pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
-      - name: Upload to Google Drive
+      - name: Upload to Google Drive via OAuth
         id: upload
         env:
+          GDRIVE_CREDENTIALS_JSON: ${{ secrets.GDRIVE_CREDENTIALS_JSON }}
+          GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
           GOOGLE_DRIVE_FOLDER_ID: ${{ secrets.GOOGLE_DRIVE_FOLDER_ID }}
-          GCP_SA_KEY: ${{ secrets.GCP_SERVICE_ACCOUNT_KEY }}
         run: |
           python3 << 'EOF'
-          import os
-          import json
+          import os, json
           from datetime import datetime
-          from google.oauth2 import service_account
           from googleapiclient.discovery import build
           from googleapiclient.http import MediaFileUpload
-          
-          # サービスアカウント情報を読み込み
-          credentials_info = json.loads(os.environ['GCP_SA_KEY'])
-          credentials = service_account.Credentials.from_service_account_info(
-              credentials_info,
-              scopes=['https://www.googleapis.com/auth/drive.file']
-          )
-          
-          # Drive APIクライアントを作成
-          service = build('drive', 'v3', credentials=credentials)
-          
-          # ファイル名を生成
+          from google.oauth2.credentials import Credentials
+
+          # 認証情報を復元
+          creds_info = json.loads(os.environ['GDRIVE_CREDENTIALS_JSON'])
+          token_info = json.loads(os.environ['GDRIVE_TOKEN_JSON'])
+          creds = Credentials.from_authorized_user_info(token_info, scopes=['https://www.googleapis.com/auth/drive.file'])
+
+          service = build('drive', 'v3', credentials=creds)
+
           timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-          file_name = f'main_{timestamp}.pdf'
-          
-          # ファイルメタデータ
-          file_metadata = {
-              'name': file_name,
-              'parents': [os.environ['GOOGLE_DRIVE_FOLDER_ID']]
-          }
-          
-          # ファイルをアップロード
+          file_name = f"main_{timestamp}.pdf"
+
+          metadata = {'name': file_name}
+          if os.environ.get('GOOGLE_DRIVE_FOLDER_ID'):
+              metadata['parents'] = [os.environ['GOOGLE_DRIVE_FOLDER_ID']]
+
           media = MediaFileUpload('src/output/main.pdf', mimetype='application/pdf')
-          file = service.files().create(
-              body=file_metadata,
-              media_body=media,
-              fields='id'
-          ).execute()
-          
+          file = service.files().create(body=metadata, media_body=media, fields='id').execute()
+
           file_id = file.get('id')
           file_url = f'https://drive.google.com/file/d/{file_id}/view'
-          
-          print(f'PDF uploaded successfully')
-          print(f'File ID: {file_id}')
-          print(f'File URL: {file_url}')
-          
-          # GitHub Outputに書き込み
+
+          print(f'✅ PDF uploaded: {file_url}')
+
+          # GitHub output
           with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
               f.write(f'file_url={file_url}\n')
               f.write(f'file_name={file_name}\n')
