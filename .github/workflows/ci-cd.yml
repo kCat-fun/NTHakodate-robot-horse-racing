@@ -161,6 +161,7 @@ jobs:
           pip install google-auth google-auth-oauthlib google-auth-httplib2 google-api-python-client
 
       - name: Upload to Google Drive via OAuth
+        id: upload
         env:
           GDRIVE_CREDENTIALS_JSON: ${{ secrets.GDRIVE_CREDENTIALS_JSON }}
           GDRIVE_TOKEN_JSON: ${{ secrets.GDRIVE_TOKEN_JSON }}
@@ -173,17 +174,139 @@ jobs:
           from googleapiclient.http import MediaFileUpload
           from google.oauth2.credentials import Credentials
 
+          # 認証情報を復元
           creds_info = json.loads(os.environ['GDRIVE_CREDENTIALS_JSON'])
           token_info = json.loads(os.environ['GDRIVE_TOKEN_JSON'])
           creds = Credentials.from_authorized_user_info(token_info, scopes=['https://www.googleapis.com/auth/drive.file'])
+
           service = build('drive', 'v3', credentials=creds)
 
           timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
           file_name = f"main_{timestamp}.pdf"
+
           metadata = {'name': file_name}
           if os.environ.get('GOOGLE_DRIVE_FOLDER_ID'):
               metadata['parents'] = [os.environ['GOOGLE_DRIVE_FOLDER_ID']]
+
           media = MediaFileUpload('src/output/main.pdf', mimetype='application/pdf')
           file = service.files().create(body=metadata, media_body=media, fields='id').execute()
-          print(f"✅ Uploaded: https://drive.google.com/file/d/{file['id']}/view")
+
+          file_id = file.get('id')
+          file_url = f'https://drive.google.com/file/d/{file_id}/view'
+
+          print(f'✅ PDF uploaded: {file_url}')
+
+          # GitHub output
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as f:
+              f.write(f'file_url={file_url}\n')
+              f.write(f'file_name={file_name}\n')
+              f.write(f'success=true\n')
           EOF
+
+      - name: Send Discord notification on success
+        if: steps.upload.outputs.success == 'true'
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"
+          
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"📄 PDF Build Successful\",
+                \"description\": \"PDFが正常にビルドされ、Google Driveにアップロードされました\",
+                \"color\": 3066993,
+                \"fields\": [
+                  {
+                    \"name\": \"📁 ファイル名\",
+                    \"value\": \"${{ steps.upload.outputs.file_name }}\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"🔗 Google Drive\",
+                    \"value\": \"[ファイルを開く](${{ steps.upload.outputs.file_url }})\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"👤 コミット作成者\",
+                    \"value\": \"${COMMIT_AUTHOR}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"📝 コミットメッセージ\",
+                    \"value\": \"${COMMIT_MESSAGE}\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"🔗 コミット\",
+                    \"value\": \"[View on GitHub](${COMMIT_URL})\",
+                    \"inline\": false
+                  }
+                ],
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+              }]
+            }" \
+            "${DISCORD_WEBHOOK_URL}"
+
+      - name: Update build workflow summary
+        if: steps.upload.outputs.success == 'true'
+        run: |
+          BUILD_RUN_URL="${{ github.event.workflow_run.html_url }}"
+          FILE_URL="${{ steps.upload.outputs.file_url }}"
+          FILE_NAME="${{ steps.upload.outputs.file_name }}"
+          
+          echo "## 📄 PDF Build and Upload Completed" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ PDF has been successfully built and uploaded to Google Drive." >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Build Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **Build Workflow**: [View Build Log](${BUILD_RUN_URL})" >> $GITHUB_STEP_SUMMARY
+          echo "- **Commit**: \`${{ github.event.workflow_run.head_sha }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Branch**: \`${{ github.event.workflow_run.head_branch }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- **Author**: ${{ github.event.workflow_run.actor.login }}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Upload Information" >> $GITHUB_STEP_SUMMARY
+          echo "- **File Name**: ${FILE_NAME}" >> $GITHUB_STEP_SUMMARY
+          echo "- **Google Drive**: [Open File](${FILE_URL})" >> $GITHUB_STEP_SUMMARY
+
+      - name: Send Discord notification on failure
+        if: failure()
+        env:
+          DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
+        run: |
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
+          COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
+          COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
+          COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"
+          RUN_URL="${{ github.event.repository.html_url }}/actions/runs/${{ github.run_id }}"
+          
+          curl -H "Content-Type: application/json" \
+            -d "{
+              \"embeds\": [{
+                \"title\": \"❌ PDF Upload Failed\",
+                \"description\": \"PDFのアップロードに失敗しました\",
+                \"color\": 15158332,
+                \"fields\": [
+                  {
+                    \"name\": \"👤 コミット作成者\",
+                    \"value\": \"${COMMIT_AUTHOR}\",
+                    \"inline\": true
+                  },
+                  {
+                    \"name\": \"📝 コミットメッセージ\",
+                    \"value\": \"${COMMIT_MESSAGE}\",
+                    \"inline\": false
+                  },
+                  {
+                    \"name\": \"🔗 詳細を確認\",
+                    \"value\": \"[GitHub Actions Log](${RUN_URL})\",
+                    \"inline\": false
+                  }
+                ],
+                \"timestamp\": \"$(date -u +%Y-%m-%dT%H:%M:%S.000Z)\"
+              }]
+            }" \
+            "${DISCORD_WEBHOOK_URL}"
