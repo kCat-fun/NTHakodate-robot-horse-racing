@@ -6,6 +6,8 @@ services:
     volumes:
       - ./src:/workspace/src
       - ./.textlintrc.json:/workspace/.textlintrc.json
+      - ./.textlintrc.prh.yml:/workspace/.textlintrc.prh.yml
+
     working_dir: /workspace
 
   build:
@@ -29,15 +31,15 @@ services:
       "
 
   textlint:
-    extends: latex
-    command: >
-      bash -c "
-        textlint src/**/*.tex
-      "
+   extends: latex
+   command: >
+     bash -c "
+       find src -name '*.tex' ! -name 'title.tex' -print0 | xargs -0 textlint
+     "
 
   fmt:
     extends: latex
     command: >
       bash -c "
-        textlint --fix src/**/*.tex
+        find src -name '*.tex' ! -name 'title.tex' -print0 | xargs -0 textlint --fix
       "

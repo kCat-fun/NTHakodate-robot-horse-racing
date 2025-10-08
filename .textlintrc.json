@@ -1,7 +1,7 @@
 {
-  "plugins": {
-    "latex2e": true
-  },
+  "plugins": [
+    "latex2e"
+  ],
   "rules": {
     "preset-ja-technical-writing": true,
     "preset-ja-spacing": true,
@@ -11,5 +11,8 @@
       ]
     },
     "spellcheck-tech-word": true
-  }
+  },
+  "ignoreFiles": [
+    "**/title.tex"
+  ]
 }
