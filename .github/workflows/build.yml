@@ -54,7 +54,7 @@ jobs:
 
       - name: Trigger upload workflow
         if: success()
-        uses: peter-evans/workflow-dispatch@v2
+        uses: peter-evans/workflow-dispatch@v1
         with:
           workflow: upload.yml
           ref: main
