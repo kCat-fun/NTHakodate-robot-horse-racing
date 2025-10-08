@@ -17,7 +17,8 @@ RUN npm install -g \
     textlint-rule-preset-ja-technical-writing \
     textlint-rule-prh \
     textlint-rule-preset-ja-spacing \
-    textlint-rule-spellcheck-tech-word
+    textlint-rule-spellcheck-tech-word \
+    textlint-plugin-latex2e
 
 # 作業ディレクトリを設定
 WORKDIR /workspace
