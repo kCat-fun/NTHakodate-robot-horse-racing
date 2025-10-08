@@ -3,7 +3,9 @@
     "latex2e"
   ],
   "rules": {
-    "preset-ja-technical-writing": true,
+    "preset-ja-technical-writing": {
+      "no-exclamation-question-mark": false
+    },
     "preset-ja-spacing": true,
     "prh": {
       "rulePaths": [
