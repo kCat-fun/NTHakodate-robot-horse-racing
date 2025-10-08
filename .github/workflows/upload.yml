@@ -1,17 +1,15 @@
 name: Upload to Google Drive
 
 on:
-  repository_dispatch:
-    types: [pdf-built]
-  workflow_dispatch:
-    inputs:
-      run_id:
-        description: 'Build workflow run ID'
-        required: true
+  workflow_run:
+    workflows: ["Build LaTeX"]
+    types:
+      - completed
 
 jobs:
   upload:
     runs-on: ubuntu-latest
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
     
     steps:
       - name: Checkout repository
@@ -22,7 +20,7 @@ jobs:
         with:
           name: main-pdf
           path: src/output
-          run-id: ${{ github.event.client_payload.run_id || github.event.inputs.run_id }}
+          run-id: ${{ github.event.workflow_run.id }}
           github-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install Python dependencies
@@ -90,7 +88,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          COMMIT_SHA="${{ github.event.client_payload.sha || github.sha }}"
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
           COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
           COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
           COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"
@@ -138,7 +136,7 @@ jobs:
         env:
           DISCORD_WEBHOOK_URL: ${{ secrets.DISCORD_WEBHOOK_URL }}
         run: |
-          COMMIT_SHA="${{ github.event.client_payload.sha || github.sha }}"
+          COMMIT_SHA="${{ github.event.workflow_run.head_sha }}"
           COMMIT_MESSAGE=$(git log -1 --pretty=%B ${COMMIT_SHA})
           COMMIT_AUTHOR=$(git log -1 --pretty=%an ${COMMIT_SHA})
           COMMIT_URL="${{ github.event.repository.html_url }}/commit/${COMMIT_SHA}"

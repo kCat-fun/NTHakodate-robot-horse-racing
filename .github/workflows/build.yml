@@ -58,14 +58,6 @@ jobs:
           path: src/output/main.pdf
           retention-days: 30
 
-      - name: Trigger upload workflow
-        if: success()
-        uses: peter-evans/repository-dispatch@v3
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          event-type: pdf-built
-          client-payload: '{"run_id": "${{ github.run_id }}", "sha": "${{ github.sha }}"}'
-
       - name: Clean up
         if: always()
         run: |
